@@ -3,3 +3,5 @@
 __pycache__/
 tmp/
 trained_model/
+data/
+*.py~

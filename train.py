@@ -22,10 +22,10 @@ from tensorflow.keras.optimizers import Adam
 
 
 flags.DEFINE_integer("epochs", 10, "number of epochs")
-flags.DEFINE_integer("batch_size", 32, "batch size")
-flags.DEFINE_float("learning_rate", 0.0001, "learning rate")
+flags.DEFINE_integer("batch-size", 32, "batch size")
+flags.DEFINE_float("learning-rate", 0.0001, "learning rate")
 flags.DEFINE_string("logdir", "./tmp/log", "log file directory")
-flags.DEFINE_boolean("keep_training", False, "continue training same weights")
+flags.DEFINE_boolean("keep-training", False, "continue training same weights")
 flags.DEFINE_boolean("keep_best", False, "only save model if it got the best loss")
 FLAGS = flags.FLAGS
 
