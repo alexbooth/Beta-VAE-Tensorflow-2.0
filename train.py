@@ -29,11 +29,11 @@ flags.DEFINE_boolean("keep_training", False, "continue training same weights")
 flags.DEFINE_boolean("keep_best", False, "only save model if it got the best loss")
 FLAGS = flags.FLAGS
 
+bce = tf.losses.BinaryCrossentropy()
 best_loss = np.inf
 model_path = None
 
 def custom_loss(X, X_pred, Z_mu, Z_logvar, n_data):
-    bce = tf.losses.BinaryCrossentropy() # TODO don't declare this each iteration
     reconstruction_error = bce(X, X_pred) # TODO rename... not really reconstruction error is it?
     reconstruction_error *= 64*64 # TODO fix
     kl_divergence = -0.5 * tf.reduce_mean(1 + Z_logvar - Z_mu**2 - tf.math.exp(0.5 * Z_logvar))
@@ -41,7 +41,7 @@ def custom_loss(X, X_pred, Z_mu, Z_logvar, n_data):
     tf.print("\n\nrecon:", reconstruction_error)
     tf.print("kl:", kl_divergence)
 
-    beta = 5
+    beta = 10
     loss = reconstruction_error + beta * kl_divergence
     return loss
 
@@ -60,11 +60,12 @@ def train(model):
                 loss = custom_loss(X, X_pred, Z_mu, Z_std, dm.training_set_size)
                 progress_bar(batch, n_batches, loss, epoch, FLAGS.epochs)
             gradients = tape.gradient(loss, model.trainable_variables)
-            # TODO apply gradient clipping
+            #gradients = [ None if gradient is None else tf.clip_by_norm(gradient, 1)
+            #                for gradient in gradients ]
             optimizer.apply_gradients(zip(gradients, model.trainable_variables))
 
     out = model.decode(model.reparameterize(Z_mu, Z_std))[0]
-    plt.imshow(out.numpy().reshape((64,64)))
+    plt.imshow(out.numpy().reshape((64,64))) # todo compute reshape
     plt.show()
 
     #save_model(model, epoch, loss) # TODO keep this

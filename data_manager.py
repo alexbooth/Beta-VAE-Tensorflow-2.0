@@ -7,6 +7,8 @@ import numpy as np
 import urllib.request
 from matplotlib import pyplot as plt
 
+
+
 class DataManager:
     def __init__(self):
         self.X = np.zeros(0)
@@ -33,6 +35,7 @@ class DataManager:
         print("size:", self.X.shape[1], "x", self.X.shape[2])
         print("type:", self.X.dtype)
         
+
 
 class DspritesManager(DataManager):
     def __init__(self):

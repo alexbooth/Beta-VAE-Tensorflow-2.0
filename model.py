@@ -18,28 +18,28 @@ def Deconv(n_filters, filter_width, strides=2, activation="relu"):
                   strides=strides, padding="same", activation=activation)
 
 class BetaVAE(tf.keras.Model):
-    def __init__(self, latent_dim=16):
+    def __init__(self, latent_dim=32):
         super(BetaVAE, self).__init__()
 
         # encoder layers
-        self.conv_e0 = Conv(32, 4)
-        self.conv_e1 = Conv(32, 4)
-        self.conv_e2 = Conv(32, 4)
-        self.conv_e3 = Conv(32, 4)
+        self.conv_e0 = Conv(8, 5)
+        self.conv_e1 = Conv(8, 5)
+        self.conv_e2 = Conv(8, 5)
+        self.conv_e3 = Conv(8, 5)
         self.f_e4 = Flatten()
-        self.fc_e5 = Dense(256, activation="relu")
-        self.fc_e6 = Dense(10,  activation="relu")
+        self.fc_e5 = Dense(128, activation="relu")
+        self.fc_e6 = Dense(32,  activation="relu")
         self.fc_e7_mu = Dense(latent_dim)
         self.fc_e8_std = Dense(latent_dim) # TODO actually log_var please label correctly
 
         # decoder layers
-        self.fc_d0 = Dense(10,  activation="relu")
-        self.fc_d1 = Dense(256,  activation="relu")
-        self.reshape_d2 = Reshape((4, 4, 16))
-        self.deconv_d3 = Deconv(32, 4)
-        self.deconv_d4 = Deconv(32, 4)
-        self.deconv_d5 = Deconv(32, 4)
-        self.deconv_d6 = Deconv(32, 4)
+        self.fc_d0 = Dense(32,  activation="relu")
+        self.fc_d1 = Dense(128,  activation="relu")
+        self.reshape_d2 = Reshape((4, 4, 8))
+        self.deconv_d3 = Deconv(8, 5)
+        self.deconv_d4 = Deconv(8, 5)
+        self.deconv_d5 = Deconv(8, 5)
+        self.deconv_d6 = Deconv(8, 5)
         self.conv_e7 = Conv(1, 1, strides=1, activation="sigmoid")
         self.reshape_d8 = Reshape((64, 64, 1))
 
