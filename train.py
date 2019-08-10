@@ -22,22 +22,28 @@ from tensorflow.keras.optimizers import Adam
 
 
 flags.DEFINE_integer("epochs", 10, "number of epochs")
-flags.DEFINE_integer("batch-size", 32, "batch size")
-flags.DEFINE_float("learning-rate", 0.0001, "learning rate")
+flags.DEFINE_integer("batch_size", 32, "batch size")
+flags.DEFINE_float("learning_rate", 0.0001, "learning rate")
 flags.DEFINE_string("logdir", "./tmp/log", "log file directory")
-flags.DEFINE_boolean("keep-training", False, "continue training same weights")
+flags.DEFINE_boolean("keep_training", False, "continue training same weights")
 flags.DEFINE_boolean("keep_best", False, "only save model if it got the best loss")
 FLAGS = flags.FLAGS
 
 best_loss = np.inf
 model_path = None
 
-def custom_loss(X, X_pred, Z_mu, Z_std):
+def custom_loss(X, X_pred, Z_mu, Z_logvar, n_data):
     bce = tf.losses.BinaryCrossentropy() # TODO don't declare this each iteration
-    reconstruction_error = tf.reduce_mean(bce(X, X_pred)) # TODO rename... not really reconstruction error is it?
-    beta = 2
-    kl_divergence = -0.5 * tf.reduce_mean(1 + Z_std - Z_mu**2 - tf.math.exp(Z_std))
-    return reconstruction_error + beta * kl_divergence
+    reconstruction_error = bce(X, X_pred) # TODO rename... not really reconstruction error is it?
+    reconstruction_error *= 64*64 # TODO fix
+    kl_divergence = -0.5 * tf.reduce_mean(1 + Z_logvar - Z_mu**2 - tf.math.exp(0.5 * Z_logvar))
+
+    tf.print("\n\nrecon:", reconstruction_error)
+    tf.print("kl:", kl_divergence)
+
+    beta = 5
+    loss = reconstruction_error + beta * kl_divergence
+    return loss
 
 def train(model):
     dm = DspritesManager() 
@@ -51,17 +57,17 @@ def train(model):
             
             with tf.GradientTape() as tape:
                 X_pred, Z_mu, Z_std = model(X)
-                loss = custom_loss(X, X_pred, Z_mu, Z_std)
+                loss = custom_loss(X, X_pred, Z_mu, Z_std, dm.training_set_size)
                 progress_bar(batch, n_batches, loss, epoch, FLAGS.epochs)
             gradients = tape.gradient(loss, model.trainable_variables)
             # TODO apply gradient clipping
             optimizer.apply_gradients(zip(gradients, model.trainable_variables))
 
-        out = model.decode(model.reparameterize(Z_mu, Z_std))[0]
-        plt.imshow(out.numpy().reshape((64,64)))
-        plt.show()
+    out = model.decode(model.reparameterize(Z_mu, Z_std))[0]
+    plt.imshow(out.numpy().reshape((64,64)))
+    plt.show()
 
-        #save_model(model, epoch, loss) # TODO keep this
+    #save_model(model, epoch, loss) # TODO keep this
     print("Finished training.")  
     
 
