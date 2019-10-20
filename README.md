@@ -1,5 +1,7 @@
 # Beta Variational Autoencoder in Tensorflow 2.0
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 Demo of a Beta-VAE with eager execution in TF2. 
 
 ## Usage
@@ -28,8 +30,11 @@ UNSUPPORTED --use_noise       n    (optional) adds salt and pepper noise to inpu
 ```
 
 ## References
-Understanding disentangling in β-VAE (Burgess et al.)  
-https://arxiv.org/pdf/1804.03599.pdf 
+Understanding disentangling in β-VAE (Burgess et al. 2018)  
+https://arxiv.org/abs/1804.03599
 
 From Autoencoder to Beta-VAE (Lilian Weng)  
 https://lilianweng.github.io/lil-log/2018/08/12/from-autoencoder-to-beta-vae.html 
+
+Auto-Encoding Variational Bayes (Kingma & Welling 2013)  
+https://arxiv.org/abs/1312.6114
