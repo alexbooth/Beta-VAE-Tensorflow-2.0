@@ -1,110 +1,64 @@
+""" Beta-VAE training script """
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import os
-import sys
-import glob
-
-import numpy as np
-import tensorflow as tf
-from tensorflow import keras
-from matplotlib import pyplot as plt
-
-from utils import progress_bar, gpu_setup, path_setup
-from data_manager import DspritesManager
+from utils.utils import * # TODO rename util
+from utils import sampling
+import dataset
 
 from absl import app
 from absl import flags
 
-from model import BetaVAE
-from tensorflow.keras.optimizers import Adam
-
+import numpy as np
 
 flags.DEFINE_integer("epochs", 10, "number of epochs")
 flags.DEFINE_integer("batch_size", 32, "batch size")
-flags.DEFINE_float("learning_rate", 0.0001, "learning rate")
+flags.DEFINE_float("learning_rate", 0.0005, "learning rate")
 flags.DEFINE_string("logdir", "./tmp/log", "log file directory")
 flags.DEFINE_boolean("keep_training", False, "continue training same weights")
 flags.DEFINE_boolean("keep_best", False, "only save model if it got the best loss")
+flags.DEFINE_integer("latent_dim", 32, "size of latent vector Z")
+flags.DEFINE_integer("gamma", 1000, "gamma parameter")
+flags.DEFINE_integer("capacity_iters", 1000, "number of iterations to reach max capacity")
+flags.DEFINE_integer("max_capacity", 25, "maximum capacity (in nats) of the vae")
 FLAGS = flags.FLAGS
 
-bce = tf.losses.BinaryCrossentropy()
-best_loss = np.inf
-model_path = None
 
-def custom_loss(X, X_pred, Z_mu, Z_logvar, n_data):
-    reconstruction_error = bce(X, X_pred) # TODO rename... not really reconstruction error is it?
-    reconstruction_error *= 64*64 # TODO fix
-    kl_divergence = -0.5 * tf.reduce_mean(1 + Z_logvar - Z_mu**2 - tf.math.exp(0.5 * Z_logvar))
+def train(model, data):
+    n_batches = data.training_set_size // FLAGS.batch_size
+    
+    def sample(step):
+        if step % 2: #TODO sample at log(step) intervals
+            sampling.append_frame(base_dir=timestamp, decoder=model.vae, frame_num=1)
 
-    tf.print("\n\nrecon:", reconstruction_error)
-    tf.print("kl:", kl_divergence)
+    def print_info(batch, recon_err, kl, loss, n_batches):
+        # Print training info
+        str_out = " recon: {}".format(round(float(recon_err), 2)) # TODO make this neater
+        str_out += " kl: {}".format(round(float(kl),2))
+        str_out += " beta: {}".format(round(float(model.beta), 2))
+        progress_bar(batch, n_batches, loss, epoch, FLAGS.epochs, suffix=str_out)
 
-    beta = 10
-    loss = reconstruction_error + beta * kl_divergence
-    return loss
-
-def train(model):
-    dm = DspritesManager() 
-    n_batches = dm.training_set_size // FLAGS.batch_size
-    optimizer = Adam(FLAGS.learning_rate)
-
-    Z_mu, Z_std = None, None
     for epoch in range(FLAGS.epochs):
         for batch in range(n_batches):
-            X, _ = dm.get_batch(FLAGS.batch_size)
-            
-            with tf.GradientTape() as tape:
-                X_pred, Z_mu, Z_std = model(X)
-                loss = custom_loss(X, X_pred, Z_mu, Z_std, dm.training_set_size)
-                progress_bar(batch, n_batches, loss, epoch, FLAGS.epochs)
-            gradients = tape.gradient(loss, model.trainable_variables)
-            #gradients = [ None if gradient is None else tf.clip_by_norm(gradient, 1)
-            #                for gradient in gradients ]
-            optimizer.apply_gradients(zip(gradients, model.trainable_variables))
+            X = data.get_batch(FLAGS.batch_size)
+            loss, recon_err, kl = model.vae.train_on_batch(X, X)
 
-    out = model.decode(model.reparameterize(Z_mu, Z_std))[0]
-    plt.imshow(out.numpy().reshape((64,64))) # todo compute reshape
-    plt.show()
+            print_info(batch, recon_err, kl, loss, n_batches)
+            sample(epoch*n_batches + batch)
 
-    #save_model(model, epoch, loss) # TODO keep this
+        save_model(model.vae, epoch, loss, kl, recon_err)
     print("Finished training.")  
-    
 
-def save_model(model, epoch, loss):
-    """Write logs and save the model"""
-    train_summary_writer = tf.summary.create_file_writer(summary_path)
-    with train_summary_writer.as_default():
-        tf.summary.scalar("loss", loss, step=epoch)
-
-    # save model
-    global best_loss
-    if not FLAGS.keep_best: 
-        model.save(model_path)
-    elif loss < best_loss:
-        best_loss = loss
-        model.save(model_path)
-
-def load_model():
-    """Set up and return the model."""
-    model = BetaVAE()
-    model.build(tf.TensorShape([None, 64, 64, 1]))
-
-    # TODO add this loading functionality back in
-    # load most recent weights if model_path exists  
-    #if os.path.isfile(model_path):
-    #    print("Loading model from", model_path)
-    #    model.load_weights(model_path)
-
-    model.summary()
-    return model
 
 def main(argv):
-    path_setup(FLAGS)
-    model = load_model()
-    train(model)
+    """ (1) General setup (directories, gpu, etc.)
+        (2) Load data manager for the desired dataset
+        (3) Load model and begin training """
+    setup(FLAGS)
+    dm = dataset.DspritesManager(batch_size=FLAGS.batch_size, color=True) 
+    model = load_model(dm)
+    train(model, dm)
 
 if __name__ == '__main__':
-    gpu_setup()
     app.run(main)

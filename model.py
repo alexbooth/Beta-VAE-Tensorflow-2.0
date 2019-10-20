@@ -5,8 +5,10 @@ from __future__ import print_function
 import numpy as np
 import tensorflow as tf
 
-from tensorflow.keras.layers import Conv2D, Conv2DTranspose, Dense
-from tensorflow.keras.layers import Flatten, Reshape
+from tensorflow.keras import Model
+from tensorflow.keras.layers import Conv2D, Conv2DTranspose, Dense, Lambda
+from tensorflow.keras.layers import Flatten, Reshape, Input
+from tensorflow.keras.optimizers import Nadam as Adam
 
 
 def Conv(n_filters, filter_width, strides=2, activation="relu"):
@@ -17,65 +19,89 @@ def Deconv(n_filters, filter_width, strides=2, activation="relu"):
     return Conv2DTranspose(n_filters, filter_width, 
                   strides=strides, padding="same", activation=activation)
 
-class BetaVAE(tf.keras.Model):
-    def __init__(self, latent_dim=32):
+class BetaVAE:
+    def __init__(self, input_shape, latent_dim=32, loss_type="bce"):
         super(BetaVAE, self).__init__()
+        self.loss_type = loss_type
+        self.latent_dim = latent_dim
+        self.channels = input_shape[2]
+        self.dims = np.prod(input_shape) 
+
+        self.beta = 0
 
         # encoder layers
-        self.conv_e0 = Conv(8, 5)
-        self.conv_e1 = Conv(8, 5)
-        self.conv_e2 = Conv(8, 5)
-        self.conv_e3 = Conv(8, 5)
-        self.f_e4 = Flatten()
-        self.fc_e5 = Dense(128, activation="relu")
-        self.fc_e6 = Dense(32,  activation="relu")
-        self.fc_e7_mu = Dense(latent_dim)
-        self.fc_e8_std = Dense(latent_dim) # TODO actually log_var please label correctly
+        encoder_input = Input(shape=(64, 64, 3))
+        X = Conv(32, 4)(encoder_input)
+        X = Conv(32, 4)(X)
+        X = Conv(32, 4)(X)
+        X = Conv(32, 4)(X)
+        X = Flatten()(X)
+        X = Dense(256, activation="relu")(X)
+        X = Dense(256,  activation="relu")(X)
+        self.Z_mu = Dense(self.latent_dim)(X)
+        self.Z_logvar = Dense(self.latent_dim, activation="relu")(X) + 1e-5
+        self.Z = Lambda(self.reparameterize, output_shape=(self.latent_dim,))([self.Z_mu, self.Z_logvar])
+        self.encoder = Model(encoder_input, [self.Z, self.Z_mu, self.Z_logvar])
 
         # decoder layers
-        self.fc_d0 = Dense(32,  activation="relu")
-        self.fc_d1 = Dense(128,  activation="relu")
-        self.reshape_d2 = Reshape((4, 4, 8))
-        self.deconv_d3 = Deconv(8, 5)
-        self.deconv_d4 = Deconv(8, 5)
-        self.deconv_d5 = Deconv(8, 5)
-        self.deconv_d6 = Deconv(8, 5)
-        self.conv_e7 = Conv(1, 1, strides=1, activation="sigmoid")
-        self.reshape_d8 = Reshape((64, 64, 1))
+        decoder_input = Input(shape=(self.latent_dim,))
+        X = Dense(256,  activation="relu")(self.Z)
+        X = Dense(256,  activation="relu")(X)
+        X = Dense(512,  activation="relu")(X)
+        X = Reshape((4, 4, 32))(X)
+        X = Deconv(32, 4)(X)
+        X = Deconv(32, 4)(X)
+        X = Deconv(32, 4)(X)
 
-    def encode(self, inputs):
-        X = self.conv_e0(inputs)
-        X = self.conv_e1(X)
-        X = self.conv_e2(X)
-        X = self.conv_e3(X)
-        X = self.f_e4(X)
-        X = self.fc_e5(X)
-        X = self.fc_e6(X)
-        Z_mu = self.fc_e7_mu(X)
-        Z_std = self.fc_e8_std(X)
-        return Z_mu, Z_std
+        decoder_act = "sigmoid" if self.channels == 1 else None
+        decoder_output = Deconv(self.channels, 4, activation=decoder_act)(X)
+        #self.decoder = Model(decoder_input, decoder_output) # TODO define a standalone decoder
 
-    def reparameterize(self, Z_mu, Z_std):
-        # Using reparameterization trick, sample random latent vectors Z from 
-        # the latent Gaussian distribution which has mean = Z_mu and std = Z_std
-        epsilon = tf.random.normal(tf.shape(Z_mu))
-        return Z_mu + tf.sqrt(tf.math.exp(0.5 * Z_std)) * epsilon
+        def reconstruction_loss(X, X_pred):
+            if self.loss_type == "bce":
+                bce = tf.losses.BinaryCrossentropy() 
+                return bce(X, X_pred) * self.dims
+            elif self.loss_type == "mse":
+                mse = tf.losses.MeanSquaredError()
+                return mse(X, X_pred) * self.dims
+            else:
+                raise ValueError("Unknown reconstruction loss type. Try 'bce' or 'mse'")
 
-    def decode(self, Z):
-        X = self.fc_d0(Z)
-        X = self.fc_d1(X)
-        X = self.reshape_d2(X)
-        X = self.deconv_d3(X)
-        X = self.deconv_d4(X)
-        X = self.deconv_d5(X)
-        X = self.deconv_d6(X)
-        X = self.conv_e7(X)
-        X = self.reshape_d8(X)
-        return X 
+        def kl_divergence(X, X_pred):
+            self.beta += (1/1440) / 4 # TODO use correct scalar
+            self.beta = min(self.beta, 25)
 
-    def call(self, inputs, training=None, mask=None):
-        Z_mu, Z_std = self.encode(inputs)
-        Z = self.reparameterize(Z_mu, Z_std)
-        X_pred = self.decode(Z)
-        return X_pred, Z_mu, Z_std
+            return self.beta * -0.5 * tf.reduce_mean(1 + self.Z_logvar - self.Z_mu**2 - tf.math.exp(self.Z_logvar))
 
+        def loss(X, X_pred):
+            return reconstruction_loss(X, X_pred) + kl_divergence(X, X_pred)
+
+        # build the full vae
+        optimizer = Adam(0.0005) # TODO move to train, TODO use flag learning rate
+        self.vae = Model(encoder_input, decoder_output)
+        self.vae.compile(optimizer=optimizer, 
+                         loss=loss,
+                         metrics=[reconstruction_loss, kl_divergence])
+
+    def reparameterize(self, args):
+        """
+        Reparameterization trick, sample random latent vectors Z from 
+        the latent Gaussian distribution which has the following parameters 
+
+        mean = self.Z_mu
+        std = exp(0.5 * self.Z_logvar)
+        """
+        self.Z_mu, self.Z_logvar = args
+        epsilon = tf.random.normal(tf.shape(self.Z_mu))
+        sigma = tf.math.exp(0.5 * self.Z_logvar)
+        return self.Z_mu + sigma * epsilon
+
+    def predict(self, inputs, mode=None):
+        if mode == "encode":
+            _, _, Z = self.encoder.predict(inputs)
+            return Z
+        if mode == "decode":
+            return self.decode(inputs)
+        if mode == None:
+            return self.vae.predict(inputs) 
+        raise ValueError("Unsupported mode during call to model.") 
