@@ -3,7 +3,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-from utils.utils import * # TODO rename util
+from utils.utils import * # TODO rename util file or dir
 from utils import sampling
 import dataset
 
@@ -26,28 +26,31 @@ FLAGS = flags.FLAGS
 
 
 def train(model, data):
+    """ Trains model with the given data """
     n_batches = data.training_set_size // FLAGS.batch_size
     
     def sample(step):
-        if step % 2: #TODO sample at log(step) intervals
-            sampling.append_frame(base_dir=timestamp, decoder=model.vae, frame_num=1)
+        """ Create latent traversal animation """
+        sampling.append_frame(timestamp, model, data, step)
 
-    def print_info(batch, recon_err, kl, loss, n_batches):
-        # Print training info
-        str_out = " recon: {}".format(round(float(recon_err), 2)) # TODO make this neater
+    def print_info(batch, recon_err, kl, loss):
+        """ Print training info """
+        str_out = " recon: {}".format(round(float(recon_err), 2))
         str_out += " kl: {}".format(round(float(kl),2))
         str_out += " beta: {}".format(round(float(model.beta), 2))
         progress_bar(batch, n_batches, loss, epoch, FLAGS.epochs, suffix=str_out)
 
+    # Training loop
     for epoch in range(FLAGS.epochs):
         for batch in range(n_batches):
             X = data.get_batch(FLAGS.batch_size)
             loss, recon_err, kl = model.vae.train_on_batch(X, X)
 
-            print_info(batch, recon_err, kl, loss, n_batches)
+            print_info(batch, recon_err, kl, loss)
             sample(epoch*n_batches + batch)
 
         save_model(model.vae, epoch, loss, kl, recon_err)
+
     print("Finished training.")  
 
 
@@ -56,9 +59,10 @@ def main(argv):
         (2) Load data manager for the desired dataset
         (3) Load model and begin training """
     setup(FLAGS)
-    dm = dataset.DspritesManager(batch_size=FLAGS.batch_size, color=True) 
+    dm = dataset.DspritesManager(batch_size=FLAGS.batch_size, color=True) # TODO make neater
     model = load_model(dm)
     train(model, dm)
+
 
 if __name__ == '__main__':
     app.run(main)
