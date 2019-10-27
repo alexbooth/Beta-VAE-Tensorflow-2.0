@@ -12,21 +12,12 @@ Begin training the model with ```train.py```
 --batch_size       n   (optional) Integer: mini-batch size during training
 UNSUPPORTED --logdir          dir  (optional) String: log file directory
 UNSUPPORTED --keep_training        (optional) loads the most recently saved weights and continues training
-UNSUPPORTED --keep_best            (optional) save model only if it has the best loss so far
-UNSUPPORTED --use_noise       n    (optional) adds salt and pepper noise to input features with a probability of n percent
+UNSUPPORTED --keep_best            (optional) save model only if it has the best training loss so far
 --help
 ```
 Track training by starting Tensorboard and then navigate to ```localhost:6006``` in browser
 ```
 tensorboard --logdir ./tmp/log/
-```
-Sample the training model with ```sample.py```  
-Note: Do not run sample.py and train.py at the same time, tensorflow will crash.
-```
-UNSUPPORTED --sample_size     n    (optional) Integer: number of samples to test
-UNSUPPORTED --model       filepath (required) String: path to a trained model (.h5 file)
-UNSUPPORTED --use_noise       n    (optional) adds salt and pepper noise to input features with a probability of n percent
---help
 ```
 
 ## References

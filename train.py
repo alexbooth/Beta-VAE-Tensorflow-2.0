@@ -10,7 +10,6 @@ import dataset
 from absl import app
 from absl import flags
 
-import numpy as np
 
 flags.DEFINE_integer("epochs", 10, "number of epochs")
 flags.DEFINE_integer("batch_size", 32, "batch size")
@@ -37,7 +36,7 @@ def train(model, data):
         """ Print training info """
         str_out = " recon: {}".format(round(float(recon_err), 2))
         str_out += " kl: {}".format(round(float(kl),2))
-        str_out += " beta: {}".format(round(float(model.beta), 2))
+        str_out += " capacity (nats): {}".format(round(float(model.C), 2))
         progress_bar(batch, n_batches, loss, epoch, FLAGS.epochs, suffix=str_out)
 
     # Training loop
