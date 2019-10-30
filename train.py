@@ -23,7 +23,6 @@ flags.DEFINE_integer("capacity_iters", 1000, "number of iterations to reach max 
 flags.DEFINE_integer("max_capacity", 25, "maximum capacity (in nats) of the vae")
 FLAGS = flags.FLAGS
 
-
 def train(model, data):
     """ Trains model with the given data """
     n_batches = data.training_set_size // FLAGS.batch_size
@@ -32,7 +31,7 @@ def train(model, data):
         """ Create latent traversal animation """
         sampling.append_frame(timestamp, model, data, step)
 
-    def print_info(batch, recon_err, kl, loss):
+    def print_info(batch, epoch, recon_err, kl, loss):
         """ Print training info """
         str_out = " recon: {}".format(round(float(recon_err), 2))
         str_out += " kl: {}".format(round(float(kl),2))
@@ -45,7 +44,7 @@ def train(model, data):
             X = data.get_batch(FLAGS.batch_size)
             loss, recon_err, kl = model.vae.train_on_batch(X, X)
 
-            print_info(batch, recon_err, kl, loss)
+            print_info(batch, epoch, recon_err, kl, loss)
             sample(epoch*n_batches + batch)
 
         save_model(model.vae, epoch, loss, kl, recon_err)

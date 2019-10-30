@@ -89,8 +89,8 @@ class DspritesManager(DataManager):
         if (N != self.batch_size):
             self.batch_size = N
             self.dataset = self.dataset.batch(batch_size=self.batch_size)
-            self.dataset_iterator = self.dataset.make_one_shot_iterator()
-        return self.dataset_iterator.get_next()
+            self.dataset_iterator = iter(self.dataset)
+        return next(self.dataset_iterator)
 
     def show_nth_sample(self, n):
         """Plots the nth sample from the dataset"""
@@ -114,4 +114,4 @@ class DspritesManager(DataManager):
         self.dataset = tf.data.Dataset.from_generator(self.generate, tf.float32, output_shapes=self.train_input_shape)
         self.dataset = self.dataset.prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
         self.dataset = self.dataset.batch(batch_size=self.batch_size)
-        self.dataset_iterator = self.dataset.make_one_shot_iterator()
+        self.dataset_iterator = iter(self.dataset)

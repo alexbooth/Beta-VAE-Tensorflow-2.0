@@ -56,7 +56,7 @@ class BetaVAE:
         X = Dense(256, activation="relu")(X)
         X = Dense(256,  activation="relu")(X)
         Z_mu = Dense(self.latent_dim)(X)
-        Z_logvar = Dense(self.latent_dim, activation="relu")(X) + 1e-5
+        Z_logvar = Dense(self.latent_dim, activation="relu")(X)
         Z = Reparameterize()([Z_mu, Z_logvar])
 
         # create decoder
@@ -83,8 +83,8 @@ class BetaVAE:
                 raise ValueError("Unknown reconstruction loss type. Try 'bce' or 'mse'")
 
         def kl_divergence(X, X_pred):
-            self.C += (1/1440) / 4 # TODO use correct scalar
-            self.C = min(self.C, 25) # TODO make variable
+            self.C += (1/1440) # TODO use correct scalar
+            self.C = min(self.C, 35) # TODO make variable
             kl = -0.5 * tf.reduce_mean(1 + Z_logvar - Z_mu**2 - tf.math.exp(Z_logvar))
             return self.gamma * tf.math.abs(kl - self.C)
 
@@ -92,16 +92,15 @@ class BetaVAE:
             return reconstruction_loss(X, X_pred) + kl_divergence(X, X_pred)
 
         # create models
-        self.encoder = Model(encoder_input, Z)
+        self.encoder = Model(encoder_input, [Z_mu, Z_logvar, Z])
         self.decoder = Model(decoder_input, decoder_output)
         self.vae = Model(encoder_input, self.decoder(Z))
-        self.vae.compile(optimizer=Adam(learning_rate), 
-                         loss=loss, 
-                         metrics=[reconstruction_loss, kl_divergence])
+        self.vae.compile(optimizer='adam', loss=loss, metrics=[reconstruction_loss, kl_divergence])
 
     def predict(self, inputs, mode=None):
         if mode == "encode":
-            return self.encoder.predict(inputs)
+            _, _, self.Z = self.encoder.predict(inputs)
+            return self.Z
         if mode == "decode":
             return self.decoder.predict(inputs)
         if mode == None:
